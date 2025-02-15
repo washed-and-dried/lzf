@@ -1,3 +1,4 @@
+#include "../include/ctring.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,10 @@ typedef struct {
     int **tracebackMatrix;
     size_t row_size, col_size;
     char *row_text, *col_text;
+    int max_score;
+    int score_x;
+    int score_y;
+    char *tracebackStr;
 } Matrix;
 
 enum trace { enumMatch, enumGap1, enumGap2 };
@@ -68,6 +73,27 @@ int max(int a, int b, int c) {
     return max > 0 ? max : 0;
 }
 
+void traceback(Matrix *m) {
+    Ctring *str = ctring("");
+    int i = m->score_x;
+    int j = m->score_y;
+    while (m->matrix[i][j] != 0) {
+        if (m->tracebackMatrix[i][j] == enumMatch) {
+            char *s = malloc(2 * sizeof(char));
+            s[0] = m->row_text[i - 1];
+            s[1] = '\0';
+            prepend(str, s);
+            i--;
+            j--;
+        } else if (m->tracebackMatrix[i][j] == enumGap1) {
+            i--;
+        } else {
+            j--;
+        }
+    }
+    m->tracebackStr = str->literal;
+}
+
 int smith_waterman(Matrix *m) {
     int maxScore = 0;
     for (size_t i = 1; i < m->row_size; i++) {
@@ -82,24 +108,33 @@ int smith_waterman(Matrix *m) {
                                        : (maxVal == gap1) ? enumGap1
                                                           : enumGap2;
             m->matrix[i][j] = maxVal;
-            maxScore = (maxVal > maxScore) ? maxVal : maxScore;
+            if (maxVal > maxScore) {
+                maxScore = maxVal;
+                m->score_x = i;
+                m->score_y = j;
+            }
         }
     }
+    m->max_score = maxScore;
     return maxScore;
 }
 
-int getSimilarityScore(char *s1, char *s2) {
+Matrix *computeMatrix(char *s1, char *s2) {
     Matrix *m = newMatrix(s1, s2); // FIXME: free(Matrix);
-    return smith_waterman(m);
+    smith_waterman(m);
+    traceback(m);
+    return m;
 }
 
 int main() {
-    char *s1 = "arshpsps";
-    char *s2 = "arsh psps";
+    char *s1 = "darshpsps";
+    char *s2 = "afrshpsps";
 
-    int score = getSimilarityScore(s1, s2);
+    Matrix *m = computeMatrix(s1, s2);
 
-    printf("%d\n", score);
+    printMatrix(m);
+    printf("%d\n", m->max_score);
+    printf("%s\n", m->tracebackStr);
 
     return 0;
 }
