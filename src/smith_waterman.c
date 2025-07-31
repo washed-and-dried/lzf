@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <memory.h>
 
 #define MATCH 2
 #define MISMATCH -1
@@ -21,15 +22,10 @@ typedef struct {
 
 enum trace { enumMatch, enumGap1, enumGap2 };
 
-// typedef struct {
-//     int val;
-//
-// }
-
 int **zeroMatrix(size_t rows, size_t cols) {
-    int **m = malloc(rows * sizeof(int *));
+    int **m = (int**) malloc(rows * sizeof(int *));
     for (size_t i = 0; i < rows; i++) {
-        m[i] = malloc(cols * sizeof(int));
+        m[i] = (int*) malloc(cols * sizeof(int));
         for (size_t j = 0; j < cols; j++) {
             m[i][j] = 0; // Initialize to zero
         }
@@ -38,7 +34,7 @@ int **zeroMatrix(size_t rows, size_t cols) {
 }
 
 Matrix *newMatrix(char *row, char *col) {
-    Matrix *m = malloc(sizeof(Matrix));
+    Matrix *m = (Matrix*) malloc(sizeof(Matrix));
 
     m->row_text = row;
     m->row_size = strlen(row) + 1;
@@ -79,7 +75,7 @@ void traceback(Matrix *m) {
     int j = m->score_y;
     while (m->matrix[i][j] != 0) {
         if (m->tracebackMatrix[i][j] == enumMatch) {
-            char *s = malloc(2 * sizeof(char));
+            char *s = (char*) malloc(2 * sizeof(char));
             s[0] = m->row_text[i - 1];
             s[1] = '\0';
             prepend(str, s);
@@ -126,15 +122,30 @@ Matrix *computeMatrix(char *s1, char *s2) {
     return m;
 }
 
-int main() {
-    char *s1 = "darshpsps";
-    char *s2 = "afrshpsps";
+double normalized_score_fast(Matrix *m, char *s1, char *s2) {
+    size_t len1 = strlen(s1);
+    size_t len2 = strlen(s2);
+    size_t min_len = len1 < len2 ? len1 : len2;
 
+    int best_possible_score = min_len * MATCH;
+
+    if (best_possible_score == 0) return 0.0;
+
+    return (double)m->max_score / best_possible_score;
+}
+
+float compare_string(char* s1, char* s2) {
     Matrix *m = computeMatrix(s1, s2);
 
+    //  score must be normalized to compare string. Otherwise it may introduce length bias for local alignment
+    float norm_score = normalized_score_fast(m, s1, s2);
+
+#if 0
     printMatrix(m);
     printf("%d\n", m->max_score);
     printf("%s\n", m->tracebackStr);
+    printf("%f\n", norm_score);
+#endif
 
-    return 0;
+    return norm_score;
 }
