@@ -1,11 +1,15 @@
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <sys/types.h>
 #include <dirent.h>
 #include <vector>
 #include "smith_waterman.c"
 
 using namespace std;
+
+#define MAX_LEVEL 2
 
 // typedef struct {
 //     char** data; // its basically a pointer to an array of strings
@@ -32,6 +36,43 @@ using namespace std;
 //     da->data[da->len++] = str;
 // }
 
+void recurse_fs(char* dirname, vector<pair<float, int>>& sorts, vector<char*>& files, char* search_string, int level) {
+    struct dirent *de; // DIRectory ENtry
+
+    DIR *dir = opendir(dirname);
+    if (dir == NULL) {
+        printf("failed opening directory: %s\n", dirname); // FIXME: maybe don't fail just print warning and return? (like permission denied)
+        exit(EXIT_FAILURE);
+    }
+
+    while ((de = readdir(dir)) != NULL) { //TODO: maybe write a dynamic arrays library (like ctring)
+        if (de->d_type != DT_DIR) {
+            float score = compare_string(search_string, de->d_name);
+
+            // printf("%s -> %f\n", de->d_name, score);
+
+            files.push_back(de->d_name);
+            sorts.push_back({score, (int)files.size() - 1});
+        } else { // if its a dir, recurse into it dawg
+            if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
+            if (!strcmp(de->d_name, ".git") || !strcmp(de->d_name, ".github")) continue;
+
+            // printf("OTHER TYPE: [%d : %s]\n", de->d_type, de->d_name);
+
+            if (level < MAX_LEVEL) { //FIXME:: for now limit depth to MAX_LEVEL
+                char* path = (char*) malloc(sizeof(char) * (strlen(dirname) + strlen(de->d_name) + 1));
+                strcpy(path, dirname);
+                strcat(path, "/");
+                strcat(path, de->d_name);
+                // printf("NEW PATH: %s\n", path);
+
+                recurse_fs(path, sorts, files, search_string, level + 1);
+                free(path);
+            }
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc != 3) { // FIXME: hard coded for now to only accept the search string and directory
         printf("lzf [SEARCH STRING] [DIR]\n");
@@ -42,27 +83,10 @@ int main(int argc, char** argv) {
     char* search_string = argv[1];
     char* directory = argv[2];
 
-    struct dirent *de; // DIRectory ENtry
-    DIR *dir = opendir(directory);
-    if (dir == NULL) {
-        printf("failed opening directory");
-        exit(EXIT_FAILURE);
-    }
-
     vector<pair<float, int>> sorts; // FIXME: maybe replace with min or max heap?
     vector<char*> files; // <string> does not work dwag. I don't know this shit :cry
 
-    // FIXME: handle directories and make it recursive descent
-    while ((de = readdir(dir)) != NULL) { //TODO: maybe write a dynamic arrays library (like ctring)
-        if (de->d_type != DT_DIR) {
-            float score = compare_string(search_string, de->d_name);
-            printf("%s -> %f\n", de->d_name, score);
-            files.push_back(de->d_name);
-            sorts.push_back({score, (int)files.size() - 1});
-        } else {
-            printf("OTHER TYPE: [%d : %s]\n", de->d_type, de->d_name);
-        }
-    }
+    recurse_fs(directory, sorts, files, search_string, 0);
 
     sort(sorts.begin(), sorts.end(), [&](auto& a, auto& b){
         return a.first > b.first;
