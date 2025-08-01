@@ -6,7 +6,7 @@ nc: ./src/nc.c | builds
 	@ ./builds/nc
 
 run: ./src/main.cpp | builds
-	@ g++ -Wall -Wextra -Wl,-rpath=./lib -o ./builds/out ./src/main.cpp -Llib -l:libctring.so
+	@ g++ -Wall -Wextra -ggdb -Wl,-rpath=./lib -o ./builds/out ./src/main.cpp -Llib -l:libctring.so
 
 clean: | builds
 	rm -rdf ./builds/*
