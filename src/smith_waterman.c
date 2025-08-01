@@ -40,6 +40,8 @@ Matrix *newMatrix(char *row, char *col) {
     m->row_size = strlen(row) + 1;
     m->col_text = col;
     m->col_size = strlen(col) + 1;
+    m->score_x = 0;
+    m->score_y = 0;
 
     m->matrix = zeroMatrix(m->row_size, m->col_size);
     m->tracebackMatrix = zeroMatrix(m->row_size, m->col_size);

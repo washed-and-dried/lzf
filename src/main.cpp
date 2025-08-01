@@ -60,7 +60,7 @@ void recurse_fs(char* dirname, vector<pair<float, int>>& sorts, vector<char*>& f
             // printf("OTHER TYPE: [%d : %s]\n", de->d_type, de->d_name);
 
             if (level < MAX_LEVEL) { //FIXME:: for now limit depth to MAX_LEVEL
-                char* path = (char*) malloc(sizeof(char) * (strlen(dirname) + strlen(de->d_name) + 1));
+                char* path = (char*) malloc(sizeof(char) * (strlen(dirname) + strlen(de->d_name) + 2));
                 strcpy(path, dirname);
                 strcat(path, "/");
                 strcat(path, de->d_name);
