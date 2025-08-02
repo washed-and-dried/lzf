@@ -1,76 +1,68 @@
 #include <algorithm>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <sys/types.h>
 #include <dirent.h>
 #include <vector>
+#include <string>
 #include "smith_waterman.c"
 
 using namespace std;
 
 #define MAX_LEVEL 2
+#define MAX_ENTRIES 50
 
-// typedef struct {
-//     char** data; // its basically a pointer to an array of strings
-//     size_t len;
-//     size_t capacity;
-// } DA;
-//
-// DA* MAKE_DA() {
-//     DA* da = malloc(sizeof(DA) * 1); // allocate on heap (mf C)
-//     da->capacity = 10;
-//     da->len = 0;
-//     da->data = malloc(sizeof(char*) * da->capacity);
-//
-//     return da;
-// }
-//
-// void DA_APPEND(DA* da, char* str) {
-//     if (da->len == da->capacity) {
-//         da->capacity *= 2;
-//         char** data = malloc(sizeof(char*) * da->capacity);
-//         memmove(data, da->data, da->len);
-//     }
-//
-//     da->data[da->len++] = str;
-// }
-
-void recurse_fs(char* dirname, vector<pair<float, int>>& sorts, vector<char*>& files, char* search_string, int level) {
+void recurse_fs(char* dirname, vector<pair<float, int>>& sorts, vector<string>& files, char* search_string, int level) {
     struct dirent *de; // DIRectory ENtry
 
     DIR *dir = opendir(dirname);
     if (dir == NULL) {
         printf("failed opening directory: %s\n", dirname); // FIXME: maybe don't fail just print warning and return? (like permission denied)
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
+        free(dir);
+        return;
     }
 
     while ((de = readdir(dir)) != NULL) { //TODO: maybe write a dynamic arrays library (like ctring)
+        char* path = (char*) malloc(sizeof(char) * (strlen(dirname) + strlen(de->d_name) + 2));
+        strcpy(path, dirname);
+
+        if (strcmp(dirname, "/")) { // dirname is not a /
+            strcat(path, "/");
+        }
+
+        strcat(path, de->d_name);
+
         if (de->d_type != DT_DIR) {
             float score = compare_string(search_string, de->d_name);
 
             // printf("%s -> %f\n", de->d_name, score);
 
-            files.push_back(de->d_name);
+            files.push_back(path);
             sorts.push_back({score, (int)files.size() - 1});
         } else { // if its a dir, recurse into it dawg
-            if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) continue;
-            if (!strcmp(de->d_name, ".git") || !strcmp(de->d_name, ".github")) continue;
+            if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, "..")) {
+                free(path);
+                continue;
+            }
+            if (!strcmp(de->d_name, ".git") || !strcmp(de->d_name, ".github") || !strcmp(de->d_name, ".cache")) {
+                free(path);
+                continue;
+            }
 
             // printf("OTHER TYPE: [%d : %s]\n", de->d_type, de->d_name);
 
+            // FIXME: THIS LEVEL THING IS BEHAVING UNDEFINED. GOTTA CHECK WHAT'S UP WITH THIS
             if (level < MAX_LEVEL) { //FIXME:: for now limit depth to MAX_LEVEL
-                char* path = (char*) malloc(sizeof(char) * (strlen(dirname) + strlen(de->d_name) + 2));
-                strcpy(path, dirname);
-                strcat(path, "/");
-                strcat(path, de->d_name);
                 // printf("NEW PATH: %s\n", path);
 
                 recurse_fs(path, sorts, files, search_string, level + 1);
-                free(path);
             }
         }
+
+        free(path);
     }
+
+    free(dir);
+    free(de);
 }
 
 int main(int argc, char** argv) {
@@ -83,8 +75,8 @@ int main(int argc, char** argv) {
     char* search_string = argv[1];
     char* directory = argv[2];
 
-    vector<pair<float, int>> sorts; // FIXME: maybe replace with min or max heap?
-    vector<char*> files; // <string> does not work dwag. I don't know this shit :cry
+    vector<pair<float, int>> sorts;
+    vector<string> files;
 
     recurse_fs(directory, sorts, files, search_string, 0);
 
@@ -92,7 +84,13 @@ int main(int argc, char** argv) {
         return a.first > b.first;
     });
 
-    for (const auto& [score, idx]: sorts) {
-        printf("%s\n", files[idx]);
+    // print only first 50 entires
+    for (int i = 0; i < MAX_ENTRIES && i < files.size() && i < sorts.size(); i++) {
+        float score = sorts[i].first;
+        int idx = sorts[i].second;
+
+        if (score == 0.0) continue; // no need to print useless entries
+
+        printf("%2d. %s -> %f\n", i, files[idx].c_str(), score);
     }
 }

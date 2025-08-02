@@ -83,6 +83,7 @@ void traceback(Matrix *m) {
             prepend(str, s);
             i--;
             j--;
+            free(s);
         } else if (m->tracebackMatrix[i][j] == enumGap1) {
             i--;
         } else {
@@ -90,6 +91,7 @@ void traceback(Matrix *m) {
         }
     }
     m->tracebackStr = str->literal;
+    free(str);
 }
 
 int smith_waterman(Matrix *m) {
@@ -136,6 +138,20 @@ double normalized_score_fast(Matrix *m, char *s1, char *s2) {
     return (double)m->max_score / best_possible_score;
 }
 
+void freeMatrix(Matrix* m){
+    for (int i = 0; i < m->row_size; i++) {
+        free(m->matrix[i]);
+    }
+    free(m->matrix);
+
+    for (int i = 0; i < m->row_size; i++) {
+        free(m->tracebackMatrix[i]);
+    }
+    free(m->tracebackMatrix);
+    free(m->tracebackStr);
+    free(m);
+}
+
 float compare_string(char* s1, char* s2) {
     Matrix *m = computeMatrix(s1, s2);
 
@@ -148,6 +164,8 @@ float compare_string(char* s1, char* s2) {
     printf("%s\n", m->tracebackStr);
     printf("%f\n", norm_score);
 #endif
+
+    freeMatrix(m);
 
     return norm_score;
 }
