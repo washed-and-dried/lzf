@@ -18,6 +18,7 @@ using namespace std;
 
 #define MAX_LEVEL 2
 #define MAX_ENTRIES 20
+#define SEPARATOR_CHAR '-' // FIXME: not used currently, fix it dawg
 
 #define QUIT CTRL('d')
 #define ESCAPE CTRL('[')
@@ -28,6 +29,9 @@ using namespace std;
 
 #define MOVE_UP(LINE) printf("\E[%dA", LINE);
 #define MOVE_UP_START(LINE) printf("\E[%dF", LINE);
+
+int height = 0;
+int width = 0;
 
 void recurse_fs(char *dirname, vector<pair<float, int>> &sorts,
                 vector<string> &files, char *search_string, int level) {
@@ -112,7 +116,7 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void process_files(char* prompt, int prompt_t, char** argv) {
+void process_files(char *prompt, int prompt_t, char **argv) {
     vector<pair<float, int>> sorts;
     vector<string> files;
 
@@ -123,19 +127,16 @@ void process_files(char* prompt, int prompt_t, char** argv) {
     char *directory = argv[2];
 
     recurse_fs(directory, sorts, files, search_string, 0);
-    printf("%zu - %zu\n", files.size(), sorts.size());
+    printf("%d / %zu entries\n", MAX_ENTRIES, sorts.size());
 
     sort(sorts.begin(), sorts.end(),
          [&](auto &a, auto &b) { return a.first > b.first; });
 
-    struct winsize ws;
-    ioctl(1, TIOCGWINSZ, &ws);
-    int term_height = ws.ws_row;
-    printf("[Height - %d] | [Width - %d]\n", ws.ws_row, ws.ws_col);
+    printf("[Height - %d] | [Width - %d]\n", height, width);
 
     // print only first 50 entires
-    for (int i = 0;
-    i < MAX_ENTRIES && i < files.size() && i < sorts.size(); i++) {
+    for (int i = 0; i < MAX_ENTRIES && i < files.size() && i < sorts.size();
+         i++) {
         float score = sorts[i].first;
         int idx = sorts[i].second;
 
@@ -146,8 +147,17 @@ void process_files(char* prompt, int prompt_t, char** argv) {
     }
 }
 
+void resize(int _) {
+    struct winsize ws;
+    ioctl(1, TIOCGWINSZ, &ws);
+    height = ws.ws_row;
+    width = ws.ws_col;
+}
+
 // FIXME: MAJOR PROBLEM, WHY DOES DEFINING THEM INSIDE MAIN FREEZES EVERYTHING?
 int main(int argc, char **argv) {
+	signal(SIGWINCH, resize);
+    resize(0);
 
     if (argc != 3) { // FIXME: hard coded for now to only accept the search
                      // string and directory
@@ -169,11 +179,11 @@ int main(int argc, char **argv) {
     printf("\E[H\E[2J"); // clear screen
 
     // print the separator
-    MOVE_DOWN_START(1)
-    printf(""
-           ""
-           ""); // FIXME: limit according to width
-    MOVE_UP_START(1)
+    MOVE_DOWN_START(1);
+    for(int i = 0; i < width; i++) {
+        printf("");
+    }
+    MOVE_UP_START(1);
 
     while (read(STDIN_FILENO, &ch, 1) == 1) {
         switch (ch) {
@@ -191,17 +201,26 @@ int main(int argc, char **argv) {
 
             printf("\E[1D \E[1D");
         } break;
-        case CTRL('l'): { // clear screen
-            printf("\E[H\E[2J");
+        case CTRL('l'): {  // clear screen
+            printf("\E7"); // save cursor
+            MOVE_DOWN_START(2)
+            printf("\E[0J"); // erase old content
+            printf("\E8");   // restore cursor
         } break;
 
-        case '\n':   // ENTER
-        case '\r': { // \n and \r since its byte-by-byte input in raw mode
+        case CTRL('u'): { // clear input
+            printf("\E[1J");
+            printf("\E[H"); // move cursor to home position
+            prompt_t = 0;
+        } break;
+
+        case '\n':         // ENTER
+        case '\r': {       // \n and \r since its byte-by-byte input in raw mode
             printf("\E7"); // save cursor
             // first we move two lines down:- one for input and one for
             // separator
             MOVE_DOWN_START(2)
-            // printf("\E[0J");   // erase old content
+            printf("\E[0J");   // erase old content
             printf("\E[?25l"); // invisible cursor
 
             prompt[prompt_t] = '\0';
