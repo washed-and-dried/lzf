@@ -17,8 +17,8 @@
 using namespace std;
 
 #define MAX_LEVEL 2
-#define MAX_ENTRIES 20
-#define SEPARATOR_CHAR '-' // FIXME: not used currently, fix it dawg
+#define MAX_ENTRIES 50
+#define SEPARATOR_CHAR L'' // FIXME: not used currently, fix it dawg
 
 #define QUIT CTRL('d')
 #define ESCAPE CTRL('[')
@@ -46,8 +46,7 @@ void recurse_fs(char *dirname, vector<pair<float, int>> &sorts,
         return;
     }
 
-    while ((de = readdir(dir)) !=
-           NULL) { // TODO: maybe write a dynamic arrays library (like ctring)
+    while ((de = readdir(dir)) != NULL) {
         char *path = (char *)malloc(sizeof(char) *
                                     (strlen(dirname) + strlen(de->d_name) + 2));
         strcpy(path, dirname);
@@ -76,13 +75,7 @@ void recurse_fs(char *dirname, vector<pair<float, int>> &sorts,
                 continue;
             }
 
-            // printf("OTHER TYPE: [%d : %s]\n", de->d_type, de->d_name);
-
-            // FIXME: THIS LEVEL THING IS BEHAVING UNDEFINED. GOTTA CHECK WHAT'S
-            // UP WITH THIS
-            if (level < MAX_LEVEL) { // FIXME:: for now limit depth to MAX_LEVEL
-                // printf("NEW PATH: %s\n", path);
-
+            if (level < MAX_LEVEL) { // only recurse upto set max level
                 recurse_fs(path, sorts, files, search_string, level + 1);
             }
         }
@@ -127,23 +120,26 @@ void process_files(char *prompt, int prompt_t, char **argv) {
     char *directory = argv[2];
 
     recurse_fs(directory, sorts, files, search_string, 0);
-    printf("%d / %zu entries\n", MAX_ENTRIES, sorts.size());
+
+    const int MAX_FIT =
+        (height - 3) >= MAX_ENTRIES ? MAX_ENTRIES : (height - 3);
+
+    printf("%d / %zu entries\n", MAX_FIT, sorts.size());
 
     sort(sorts.begin(), sorts.end(),
          [&](auto &a, auto &b) { return a.first > b.first; });
 
-    printf("[Height - %d] | [Width - %d]\n", height, width);
-
-    // print only first 50 entires
-    for (int i = 0; i < MAX_ENTRIES && i < files.size() && i < sorts.size();
-         i++) {
+    for (int i = 0; i < MAX_FIT && i < files.size() && i < sorts.size(); i++) {
         float score = sorts[i].first;
         int idx = sorts[i].second;
 
         if (score == 0.0)
             continue; // no need to print useless entries
 
-        printf("%2d. %s -> %f\n", i, files[idx].c_str(), score);
+        if (i != 0) { // don't ask me why dawg. It is what it is
+            printf("\n");
+        }
+        printf("%2d. %s -> %f", i, files[idx].c_str(), score);
     }
 }
 
@@ -154,9 +150,9 @@ void resize(int _) {
     width = ws.ws_col;
 }
 
-// FIXME: MAJOR PROBLEM, WHY DOES DEFINING THEM INSIDE MAIN FREEZES EVERYTHING?
 int main(int argc, char **argv) {
-	signal(SIGWINCH, resize);
+    setlocale(LC_ALL, "");
+    signal(SIGWINCH, resize);
     resize(0);
 
     if (argc != 3) { // FIXME: hard coded for now to only accept the search
@@ -170,7 +166,6 @@ int main(int argc, char **argv) {
     enableRawMode(); // disabled on callback
 
     char prompt[256];
-    int kk = 10;
     int prompt_t =
         0; // NOTE: FUCKING LONG IS FUCKED, SIZE_T IS LONG UNSIGNED INT AND LONG
            // IS FUCKED SO CANT USE SIZE_T OR LONG IN CURRENT SCOPE
@@ -180,8 +175,8 @@ int main(int argc, char **argv) {
 
     // print the separator
     MOVE_DOWN_START(1);
-    for(int i = 0; i < width; i++) {
-        printf("");
+    for (int i = 0; i < width; i++) {
+        printf("%lc", SEPARATOR_CHAR);
     }
     MOVE_UP_START(1);
 
