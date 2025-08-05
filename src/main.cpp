@@ -1,5 +1,6 @@
 #include "smith_waterman.c"
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <dirent.h>
 #include <string>
@@ -16,7 +17,7 @@
 using namespace std;
 
 #define MAX_LEVEL 2
-#define MAX_ENTRIES 25
+#define MAX_ENTRIES 20
 
 #define QUIT CTRL('d')
 #define ESCAPE CTRL('[')
@@ -111,6 +112,40 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+void process_files(char* prompt, int prompt_t, char** argv) {
+    vector<pair<float, int>> sorts;
+    vector<string> files;
+
+    // FIXME: replace with ctring when we get character append
+    char *search_string = (char *)malloc(sizeof(char) * prompt_t);
+    memcpy(search_string, prompt, prompt_t);
+
+    char *directory = argv[2];
+
+    recurse_fs(directory, sorts, files, search_string, 0);
+    printf("%zu - %zu\n", files.size(), sorts.size());
+
+    sort(sorts.begin(), sorts.end(),
+         [&](auto &a, auto &b) { return a.first > b.first; });
+
+    struct winsize ws;
+    ioctl(1, TIOCGWINSZ, &ws);
+    int term_height = ws.ws_row;
+    printf("[Height - %d] | [Width - %d]\n", ws.ws_row, ws.ws_col);
+
+    // print only first 50 entires
+    for (int i = 0;
+    i < MAX_ENTRIES && i < files.size() && i < sorts.size(); i++) {
+        float score = sorts[i].first;
+        int idx = sorts[i].second;
+
+        if (score == 0.0)
+            continue; // no need to print useless entries
+
+        printf("%2d. %s -> %f\n", i, files[idx].c_str(), score);
+    }
+}
+
 // FIXME: MAJOR PROBLEM, WHY DOES DEFINING THEM INSIDE MAIN FREEZES EVERYTHING?
 int main(int argc, char **argv) {
 
@@ -162,9 +197,6 @@ int main(int argc, char **argv) {
 
         case '\n':   // ENTER
         case '\r': { // \n and \r since its byte-by-byte input in raw mode
-            vector<pair<float, int>> sorts;
-            vector<string> files;
-
             printf("\E7"); // save cursor
             // first we move two lines down:- one for input and one for
             // separator
@@ -174,36 +206,7 @@ int main(int argc, char **argv) {
 
             prompt[prompt_t] = '\0';
 
-            // FIXME: replace with ctring when we get character append
-            char *search_string = (char *)malloc(sizeof(char) * prompt_t);
-            memcpy(search_string, prompt, prompt_t);
-
-            char *directory = argv[2];
-
-            recurse_fs(directory, sorts, files, search_string, 0);
-            printf("%zu - %zu\n", files.size(), sorts.size());
-
-            sort(sorts.begin(), sorts.end(),
-                 [&](auto &a, auto &b) { return a.first > b.first; });
-
-            struct winsize ws;
-            ioctl(1, TIOCGWINSZ, &ws);
-            int term_height = ws.ws_row;
-
-            printf("%d", kk);
-            kk++;
-
-            // print only first 50 entires
-            for (int i = 0;
-                 i < MAX_ENTRIES && i < files.size() && i < sorts.size(); i++) {
-                float score = sorts[i].first;
-                int idx = sorts[i].second;
-
-                if (score == 0.0)
-                    continue; // no need to print useless entries
-
-                // printf("%2d. %s -> %f\n", i, files[idx].c_str(), score);
-            }
+            process_files(prompt, prompt_t, argv);
 
             printf("\E[?25h"); // visible cursor
             printf("\E8");     // restore cursor
