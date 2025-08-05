@@ -18,6 +18,7 @@ using namespace std;
 
 #define MAX_LEVEL 2
 #define MAX_ENTRIES 50
+#define CONTENT_START 3 // position where we start printing the file names
 #define SEPARATOR_CHAR L'' // FIXME: not used currently, fix it dawg
 
 #define QUIT CTRL('d')
@@ -99,7 +100,7 @@ void disableRawMode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
 void enableRawMode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
 
-    atexit(disableRawMode);
+    // atexit(disableRawMode);
 
     struct termios raw = orig_termios;
 
@@ -121,15 +122,14 @@ void process_files(char *prompt, int prompt_t, char **argv) {
 
     recurse_fs(directory, sorts, files, search_string, 0);
 
-    const int MAX_FIT =
-        (height - 3) >= MAX_ENTRIES ? MAX_ENTRIES : (height - 3);
+    const int MAX_FIT = min(height - CONTENT_START, min((int)files.size(), MAX_ENTRIES));
 
     printf("%d / %zu entries\n", MAX_FIT, sorts.size());
 
     sort(sorts.begin(), sorts.end(),
          [&](auto &a, auto &b) { return a.first > b.first; });
 
-    for (int i = 0; i < MAX_FIT && i < files.size() && i < sorts.size(); i++) {
+    for (int i = 0; i < MAX_FIT && i < files.size(); i++) {
         float score = sorts[i].first;
         int idx = sorts[i].second;
 
@@ -138,8 +138,10 @@ void process_files(char *prompt, int prompt_t, char **argv) {
 
         if (i != 0) { // don't ask me why dawg. It is what it is
             printf("\n");
+            printf("\E[48;5;244m \E[49m %s -> %f", files[idx].c_str(), score);
+        } else {
+            printf("\E[38;5;69m> %s -> %f\E[39m", files[idx].c_str(), score);
         }
-        printf("%2d. %s -> %f", i, files[idx].c_str(), score);
     }
 }
 
@@ -242,4 +244,5 @@ int main(int argc, char **argv) {
         }
         }
     }
+    disableRawMode();
 }
