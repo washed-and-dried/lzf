@@ -109,12 +109,16 @@ void die(const char *s) {
     exit(1);
 }
 
-void disableRawMode() { tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); }
+void cleanup() {
+	printf("\E[?1049l"); // disable alternate buffer
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+    if(!files.empty()) printf("%s\n", files[idx_cursor + idx_l].c_str());
+}
 
 void enableRawMode() {
     tcgetattr(STDIN_FILENO, &orig_termios);
 
-    // atexit(disableRawMode);
+    atexit(cleanup);
 
     struct termios raw = orig_termios;
 
@@ -191,6 +195,9 @@ void resize(int _) {
 }
 
 int main(int argc, char **argv) {
+	printf("\E[?1049h"); // enable alternate buffer
+    printf("\E[H\E[2J"); // clear screen
+
     setlocale(LC_ALL, "");
     signal(SIGWINCH, resize);
     resize(0);
@@ -211,8 +218,6 @@ int main(int argc, char **argv) {
            // IS FUCKED SO CANT USE SIZE_T OR LONG IN CURRENT SCOPE
     int ch;
 
-    printf("\E[H\E[2J"); // clear screen
-
     // print the separator
     MOVE_DOWN_START(1);
     for (int i = 0; i < width; i++) {
@@ -226,7 +231,6 @@ int main(int argc, char **argv) {
         case ESCAPE:
         case QUIT: {
             printf("\E[H\E[2J"); // move to home and erase everything
-            printf("%s\n", files[idx_cursor + idx_l].c_str());
             exit(0);
         } break;
         case CTRL('h'):
@@ -330,5 +334,5 @@ int main(int argc, char **argv) {
         }
         }
     }
-    disableRawMode();
+    cleanup();
 }
