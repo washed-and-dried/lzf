@@ -35,6 +35,11 @@ using namespace std;
 int height = 0;
 int width = 0;
 
+/* NOTE: Constraints for the following variables
+    * 0 <= idx_l <= files.size()
+    * 0 <= idx_r <= files.size()
+    * 0 <= idx_cursor <= MAX_FIT
+*/
 int idx_l = 0;
 int idx_r = 0;
 int idx_cursor = 0;
@@ -121,15 +126,16 @@ void enableRawMode() {
 
 void print_files() {
     assert(sorts.size() == files.size() && "Sort.size() != Files.size()");
-    printf("%d / %zu entries\n", MAX_FIT,
+    printf("%d / %zu entries\n", idx_cursor + idx_l,
            sorts.size()); // FIXME: recalculate this everytime
 
-    for (int i = 0; i < MAX_FIT; i++) {
-        if (i != 0) { // don't ask me why dawg. It is what it is
+    assert(idx_r - idx_l == MAX_FIT && "Window length exceeds Maximum possible entries at once");
+    for (int i = idx_l; i < idx_r; i++) {
+        if (i != idx_l) { // don't ask me why dawg. It is what it is
             printf("\n");
         }
 
-        if (i == idx_cursor) {
+        if (i == (idx_l + idx_cursor)) {
             printf("\E[38;5;69m> %s\E[39m", files[i].c_str());
         } else {
             printf("\E[48;5;244m \E[49m %s", files[i].c_str());
@@ -216,9 +222,11 @@ int main(int argc, char **argv) {
 
     while (read(STDIN_FILENO, &ch, 1) == 1) {
         switch (ch) {
+        case CTRL('y'):
         case ESCAPE:
         case QUIT: {
-            printf("\n");
+            printf("\E[H\E[2J"); // move to home and erase everything
+            printf("%s\n", files[idx_cursor + idx_l].c_str());
             exit(0);
         } break;
         case CTRL('h'):
@@ -245,6 +253,7 @@ int main(int argc, char **argv) {
 
         case '\n':         // ENTER
         case '\r': {       // \n and \r since its byte-by-byte input in raw mode
+            // FIXME: Abstract the ceremony for printing in a macro
             printf("\E7"); // save cursor
             // first we move two lines down:- one for input and one for
             // separator
@@ -260,9 +269,6 @@ int main(int argc, char **argv) {
             printf("\E8");     // restore cursor
         } break;
         case CTRL('n'): {
-            if (idx_cursor >= MAX_FIT - 1)
-                continue; // if last index contiune
-
             printf("\E7"); // save cursor
             // first we move two lines down:- one for input and one for
             // separator
@@ -270,16 +276,22 @@ int main(int argc, char **argv) {
             printf("\E[0J");   // erase old content
             printf("\E[?25l"); // invisible cursor
 
-            idx_cursor++;
+            // FIXME: Both here and in Ctrl+p, we are reprinting files even if the idx or window hasn't changed. Fix that
+            if (idx_cursor >= MAX_FIT - 1) {
+                if (idx_r < files.size() - 1) {
+                    idx_r++;
+                    idx_l++;
+                }
+            } else {
+                idx_cursor++;
+            }
+
             print_files();
 
             printf("\E[?25h"); // visible cursor
             printf("\E8");     // restore cursor
         } break;
         case CTRL('p'): {
-            if (idx_cursor == 0)
-                continue; // if first index contiune
-
             printf("\E7"); // save cursor
             // first we move two lines down:- one for input and one for
             // separator
@@ -287,7 +299,15 @@ int main(int argc, char **argv) {
             printf("\E[0J");   // erase old content
             printf("\E[?25l"); // invisible cursor
 
-            idx_cursor--;
+            if (idx_cursor == 0) {
+                if (idx_l > 0) {
+                    idx_l--;
+                    idx_r--;
+                }
+            } else {
+                idx_cursor--;
+            }
+
             print_files();
 
             printf("\E[?25h"); // visible cursor
