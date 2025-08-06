@@ -1,5 +1,6 @@
 #include "smith_waterman.c"
 #include <algorithm>
+#include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <dirent.h>
@@ -18,7 +19,7 @@ using namespace std;
 
 #define MAX_LEVEL 2
 #define MAX_ENTRIES 50
-#define CONTENT_START 3 // position where we start printing the file names
+#define CONTENT_START 3       // position where we start printing the file names
 #define SEPARATOR_CHAR L'' // FIXME: not used currently, fix it dawg
 
 #define QUIT CTRL('d')
@@ -33,6 +34,14 @@ using namespace std;
 
 int height = 0;
 int width = 0;
+
+int idx_l = 0;
+int idx_r = 0;
+int idx_cursor = 0;
+int MAX_FIT = 0;
+
+vector<pair<float, int>> sorts;
+vector<string> files;
 
 void recurse_fs(char *dirname, vector<pair<float, int>> &sorts,
                 vector<string> &files, char *search_string, int level) {
@@ -110,9 +119,29 @@ void enableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
+void print_files() {
+    assert(sorts.size() == files.size() && "Sort.size() != Files.size()");
+    printf("%d / %zu entries\n", MAX_FIT,
+           sorts.size()); // FIXME: recalculate this everytime
+
+    for (int i = 0; i < MAX_FIT; i++) {
+        if (i != 0) { // don't ask me why dawg. It is what it is
+            printf("\n");
+        }
+
+        if (i == idx_cursor) {
+            printf("\E[38;5;69m> %s\E[39m", files[i].c_str());
+        } else {
+            printf("\E[48;5;244m \E[49m %s", files[i].c_str());
+        }
+    }
+}
+
 void process_files(char *prompt, int prompt_t, char **argv) {
-    vector<pair<float, int>> sorts;
-    vector<string> files;
+    files.clear();
+    sorts.clear();
+
+    vector<string> pfiles;
 
     // FIXME: replace with ctring when we get character append
     char *search_string = (char *)malloc(sizeof(char) * prompt_t);
@@ -120,29 +149,32 @@ void process_files(char *prompt, int prompt_t, char **argv) {
 
     char *directory = argv[2];
 
-    recurse_fs(directory, sorts, files, search_string, 0);
-
-    const int MAX_FIT = min(height - CONTENT_START, min((int)files.size(), MAX_ENTRIES));
-
-    printf("%d / %zu entries\n", MAX_FIT, sorts.size());
+    recurse_fs(directory, sorts, pfiles, search_string, 0);
 
     sort(sorts.begin(), sorts.end(),
          [&](auto &a, auto &b) { return a.first > b.first; });
 
-    for (int i = 0; i < MAX_FIT && i < files.size(); i++) {
+    for (int i = 0; i < sorts.size(); i++) {
         float score = sorts[i].first;
         int idx = sorts[i].second;
 
-        if (score == 0.0)
-            continue; // no need to print useless entries
-
-        if (i != 0) { // don't ask me why dawg. It is what it is
-            printf("\n");
-            printf("\E[48;5;244m \E[49m %s -> %f", files[idx].c_str(), score);
-        } else {
-            printf("\E[38;5;69m> %s -> %f\E[39m", files[idx].c_str(), score);
+        if (score == 0.0) { // lets just erase all zero scores
+            sorts.erase(sorts.begin() + i, sorts.end());
+            break;
         }
+
+        files.push_back(pfiles[idx]);
     }
+
+    pfiles.clear(); // FIXME: might be not important
+
+    MAX_FIT = min(height - CONTENT_START, min((int)files.size(), MAX_ENTRIES));
+
+    idx_l = 0;
+    idx_r = MAX_FIT;
+    idx_cursor = 0;
+
+    print_files();
 }
 
 void resize(int _) {
@@ -223,6 +255,40 @@ int main(int argc, char **argv) {
             prompt[prompt_t] = '\0';
 
             process_files(prompt, prompt_t, argv);
+
+            printf("\E[?25h"); // visible cursor
+            printf("\E8");     // restore cursor
+        } break;
+        case CTRL('n'): {
+            if (idx_cursor >= MAX_FIT - 1)
+                continue; // if last index contiune
+
+            printf("\E7"); // save cursor
+            // first we move two lines down:- one for input and one for
+            // separator
+            MOVE_DOWN_START(2)
+            printf("\E[0J");   // erase old content
+            printf("\E[?25l"); // invisible cursor
+
+            idx_cursor++;
+            print_files();
+
+            printf("\E[?25h"); // visible cursor
+            printf("\E8");     // restore cursor
+        } break;
+        case CTRL('p'): {
+            if (idx_cursor == 0)
+                continue; // if first index contiune
+
+            printf("\E7"); // save cursor
+            // first we move two lines down:- one for input and one for
+            // separator
+            MOVE_DOWN_START(2)
+            printf("\E[0J");   // erase old content
+            printf("\E[?25l"); // invisible cursor
+
+            idx_cursor--;
+            print_files();
 
             printf("\E[?25h"); // visible cursor
             printf("\E8");     // restore cursor
