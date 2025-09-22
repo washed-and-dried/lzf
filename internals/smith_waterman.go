@@ -1,4 +1,0 @@
-package internals
-
-func SmithWaterman() {
-}
