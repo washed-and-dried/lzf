@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-	matrix, score := smithwaterman.ComputeMatrix("arshpsps", "arshpsps")
-	fmt.Println(score)
+	score, traceback, matrix := smithwaterman.ComputeMatrix("darshpsps", "afrshpsps")
 	matrix.PrintMatrix()
+	fmt.Println(score)
+	fmt.Println(traceback)
 }

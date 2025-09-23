@@ -21,18 +21,19 @@ type pair struct {
 }
 
 type Matrix struct {
-	matrix           map[pair]int
-	rowSize, colSize int
+	matrix           map[pair]pair
 	rowText, colText string
-	scoreX, scoreY   int // represents the Matrix.Score Position on the matrix, required for constructing a traceback/match string
+	tracebackStr     string
+	rowSize, colSize int
+	scorePos         pair // represents the Matrix.Score Position on the matrix, required for constructing a traceback/match string
 	Score            int
 }
 
 func newMatrix(row, col string) *Matrix {
 	return &Matrix{
-		matrix:  map[pair]int{},
-		rowSize: len(row),
-		colSize: len(col),
+		matrix:  map[pair]pair{},
+		rowSize: len(row)+1,
+		colSize: len(col)+1,
 		rowText: row,
 		colText: col,
 	}
@@ -40,7 +41,7 @@ func newMatrix(row, col string) *Matrix {
 
 func (m *Matrix) get(i, j int) int {
 	if val, ok := m.matrix[pair{i, j}]; ok {
-		return val
+		return val.l
 	}
 	return 0
 }
@@ -59,13 +60,20 @@ func (m *Matrix) smithWaterman() int {
 			gap2 := m.get(i, j-1) + GAP
 			maxVal := max(match, gap1, gap2)
 			if maxVal > 0 {
-				fmt.Println(">>>", maxVal, "<<<")
-				m.matrix[pair{i, j}] = maxVal
+				p := pair{maxVal, 0}
+				switch maxVal {
+				case match:
+					p.r = enumMatch
+				case gap1:
+					p.r = enumGap1
+				default:
+					p.r = enumGap2
+				}
+				m.matrix[pair{i, j}] = p
 			}
 			if maxVal > maxScore {
 				maxScore = maxVal
-				m.scoreX = i
-				m.scoreY = j
+				m.scorePos = pair{i, j}
 			}
 		}
 	}
@@ -73,12 +81,35 @@ func (m *Matrix) smithWaterman() int {
 	return maxScore
 }
 
+func (m *Matrix) traceback() string {
+	var str []byte
+
+	pos := pair{m.scorePos.l, m.scorePos.r}
+
+	for p, ok := m.matrix[pos]; ok; p, ok = m.matrix[pos] {
+		switch p.r {
+		case enumMatch:
+			println(pos.l, pos.r)
+			str = append([]byte{m.rowText[pos.l-1]}, str...)
+			pos.l--
+			pos.r--
+		case enumGap1:
+			pos.l--
+		default:
+			pos.r--
+		}
+	}
+
+	m.tracebackStr = string(str)
+	return m.tracebackStr
+}
+
 // ComputeMatrix takes 2 strings to perform smithwaterman on.
 //
-// Returns Matrix{} and smithwaterman score
-func ComputeMatrix(str1, str2 string) (*Matrix, int) {
+// Returns smithwaterman score, traceback string and *Matrix{}
+func ComputeMatrix(str1, str2 string) (int, string, *Matrix) { // TODO: returning *Matrix{} is only useful for testing, should be removed later or gotten via a different method
 	m := newMatrix(str1, str2)
-	return m, m.smithWaterman()
+	return m.smithWaterman(), m.traceback(), m
 }
 
 func (m *Matrix) PrintMatrix() {
