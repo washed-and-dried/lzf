@@ -66,7 +66,7 @@ func dirExists(dir string) bool {
 }
 
 func main() {
-	dir := ".."
+	dir := "/"
 	if !dirExists(dir) {
 		fmt.Printf("Provided directory %d does not exist\n", dir)
 		os.Exit(69)
@@ -90,7 +90,8 @@ func main() {
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(list, 0, 10, false).
-		AddItem(inputField, 0, 1, true)
+		AddItem((&tview.Box{}).SetBackgroundColor(list.GetBackgroundColor()), 1, 0, false). // FIXME: tmp fix
+		AddItem(inputField, 1, 0, true)
 
 	// Ctrl + N and Ctrl + P to navigate list
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
