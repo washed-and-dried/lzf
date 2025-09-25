@@ -4,49 +4,50 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	// "flag"
-	// "math/rand"
-	// "strconv"
-	// "github.com/gdamore/tcell/v2"
-	// "github.com/rivo/tview"
 )
 
-func listFiles(dirpath string) []string {
+var ignoredDirs = map[string]bool{
+	".git":    true,
+	".github": true,
+	".cache":  true,
+	"tmp":     true,
+}
+
+func shouldIgnore(dir string) bool {
+	_, ok := ignoredDirs[dir]
+
+	return ok
+}
+
+func listFiles(dirpath string) *[]string {
 	files := []string{}
 
 	filepath.WalkDir(dirpath, func(path string, items os.DirEntry, err error) error {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] Could not recursive down the directory: %s", err)
-			return filepath.SkipAll
+			// FIXME: fmt.Fprintf(os.Stderr, "[ERROR] Could not get directory or file info: %s", err)
+			return filepath.SkipDir
 		}
 
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[ERROR] Could not get directory or file info: %s", err)
-			return filepath.SkipAll
-		}
-
-		if items.IsDir() {
-			if strings.Contains(items.Name(), ".git") {
-				// TODO: skip .git, .github, .cache etc
+		if items.IsDir() { // dirs
+			if shouldIgnore(items.Name()) {
 				return filepath.SkipDir
 			}
 
 			return nil
-		} else {
-			files = append(files, filepath.Clean(path))
+		} else { // files
+			files = append(files, path)
 			return nil
 		}
 	})
 
-	return files
+	return &files
 }
 
 func main() {
-	files := listFiles(".")
+	files := *listFiles("/")
 	app := tview.NewApplication()
 
 	list := tview.NewList()
@@ -55,11 +56,12 @@ func main() {
 	inputField := tview.NewInputField().
 		SetFieldWidth(30).
 		SetChangedFunc(func(text string) {
-			list = list.Clear()
-
-			for _, file := range files {
-				list = list.AddItem(file, "", '\x00', nil)
+			if len(text) == 0 {
+				list = list.Clear()
+				return
 			}
+
+			list = list.AddItem(files[len(text)], "", '\x00', nil)
 		})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
