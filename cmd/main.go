@@ -14,6 +14,10 @@ var ignoredDirs = map[string]bool{
 	".github": true,
 	".cache":  true,
 	"tmp":     true,
+	"dev":     true,
+	"mnt":     true,
+	"proc":     true,
+	"sys":     true,
 }
 
 func shouldIgnore(dir string) bool {
@@ -22,9 +26,7 @@ func shouldIgnore(dir string) bool {
 	return ok
 }
 
-func listFiles(dirpath string) *[]string {
-	files := []string{}
-
+func listFiles(dirpath string, onichan chan string) {
 	filepath.WalkDir(dirpath, func(path string, items os.DirEntry, err error) error {
 		if err != nil {
 			// FIXME: fmt.Fprintf(os.Stderr, "[ERROR] Could not get directory or file info: %s", err)
@@ -38,30 +40,34 @@ func listFiles(dirpath string) *[]string {
 
 			return nil
 		} else { // files
-			files = append(files, path)
+			onichan <- path
 			return nil
 		}
 	})
+}
 
-	return &files
+func updateListWithFiles(ls **tview.List, files *[]string, onichan chan string) {
+	for file := range onichan {
+		*ls = (*ls).AddItem(file, "", '\x00', nil)
+		*files = append(*files, file)
+	}
 }
 
 func main() {
-	files := *listFiles("/")
+	files := []string{}
+	onichan := make(chan string)
+	go listFiles("/", onichan)
+
 	app := tview.NewApplication()
 
 	list := tview.NewList()
 	list.ShowSecondaryText(false)
 
+	go updateListWithFiles(&list, &files, onichan)
+
 	inputField := tview.NewInputField().
 		SetFieldWidth(30).
 		SetChangedFunc(func(text string) {
-			if len(text) == 0 {
-				list = list.Clear()
-				return
-			}
-
-			list = list.AddItem(files[len(text)], "", '\x00', nil)
 		})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
