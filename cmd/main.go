@@ -2,15 +2,51 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"strconv"
+	"path/filepath"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	// "flag"
+	// "math/rand"
+	// "strconv"
+	// "github.com/gdamore/tcell/v2"
+	// "github.com/rivo/tview"
 )
 
+func listFiles(dirpath string) []string {
+	files := []string{}
+
+	filepath.WalkDir(dirpath, func(path string, items os.DirEntry, err error) error {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[ERROR] Could not recursive down the directory: %s", err)
+			return filepath.SkipAll
+		}
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[ERROR] Could not get directory or file info: %s", err)
+			return filepath.SkipAll
+		}
+
+		if items.IsDir() {
+			if strings.Contains(items.Name(), ".git") {
+				// TODO: skip .git, .github, .cache etc
+				return filepath.SkipDir
+			}
+
+			return nil
+		} else {
+			files = append(files, filepath.Clean(path))
+			return nil
+		}
+	})
+
+	return files
+}
+
 func main() {
+	files := listFiles(".")
 	app := tview.NewApplication()
 
 	list := tview.NewList()
@@ -19,11 +55,11 @@ func main() {
 	inputField := tview.NewInputField().
 		SetFieldWidth(30).
 		SetChangedFunc(func(text string) {
-			list = list.Clear().
-				AddItem("List item "+strconv.FormatInt(rand.Int63(), 10), "", '\x00', nil).
-				AddItem("List item "+strconv.FormatInt(rand.Int63(), 10), "", '\x00', nil).
-				AddItem("List item "+strconv.FormatInt(rand.Int63(), 10), "", '\x00', nil).
-				AddItem("List item "+strconv.FormatInt(rand.Int63(), 10), "", '\x00', nil)
+			list = list.Clear()
+
+			for _, file := range files {
+				list = list.AddItem(file, "", '\x00', nil)
+			}
 		})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
