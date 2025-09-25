@@ -53,16 +53,34 @@ func updateListWithFiles(ls **tview.List, files *[]string, onichan chan string) 
 	}
 }
 
+func dirExists(dir string) bool {
+	if _, err := os.Stat(dir); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		} else {
+			panic(err)
+		}
+	}
+
+	return true
+}
+
 func main() {
-	files := []string{}
+	dir := ".."
+	if !dirExists(dir) {
+		fmt.Printf("Provided directory %d does not exist\n", dir)
+		os.Exit(69)
+	}
+
 	onichan := make(chan string)
-	go listFiles("/", onichan)
+	go listFiles(dir, onichan)
 
 	app := tview.NewApplication()
 
 	list := tview.NewList()
 	list.ShowSecondaryText(false)
 
+	files := []string{}
 	go updateListWithFiles(&list, &files, onichan)
 
 	inputField := tview.NewInputField().
