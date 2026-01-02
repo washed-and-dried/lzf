@@ -89,7 +89,7 @@ func (m *Matrix) traceback() string {
 	for p, ok := m.matrix[pos]; ok; p, ok = m.matrix[pos] {
 		switch p.r {
 		case enumMatch:
-			println(pos.l, pos.r)
+			// println(pos.l, pos.r)
 			str = append([]byte{m.rowText[pos.l-1]}, str...)
 			pos.l--
 			pos.r--
