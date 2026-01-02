@@ -16,6 +16,7 @@ var ignoredDirs = map[string]bool{
 	".github": true,
 	".cache":  true,
 	"Android": true,
+	"go":      true,
 	"tmp":     true,
 	"dev":     true,
 	"mnt":     true,
@@ -23,7 +24,15 @@ var ignoredDirs = map[string]bool{
 	"sys":     true,
 }
 
-var app *tview.Application
+var (
+	app   *tview.Application
+	count *tview.TextView
+)
+
+var (
+	BACKGROUND_COLOR = tcell.GetColor("#FFAF00")
+	FOREGROUND_COLOR = tcell.GetColor("#4E4E4E")
+)
 
 func shouldIgnore(dir string) bool {
 	_, ok := ignoredDirs[dir]
@@ -61,6 +70,7 @@ func updateListWithFiles(ls *tview.List, files *[]string, onichan chan string) {
 		*files = append(*files, file)
 		app.QueueUpdateDraw(func() {
 			ls.AddItem(file, "", '\x00', func() {})
+			count.SetText(fmt.Sprintf("fetching %d files", len(*files)))
 		})
 	}
 }
@@ -93,8 +103,12 @@ func dirExists(dir string) bool {
 }
 
 func main() {
-	dir, _ := os.UserHomeDir() // FIXME: take from shell
-	// dir := "."
+	if len(os.Args) < 2 {
+		fmt.Printf("USAGE: %s [DIRECTORY]\n", os.Args[0])
+		os.Exit(69)
+	}
+
+	dir := os.Args[1]
 	if !dirExists(dir) {
 		fmt.Printf("Provided directory %s does not exist\n", dir)
 		os.Exit(69)
@@ -107,14 +121,20 @@ func main() {
 
 	list := tview.NewList()
 	list.ShowSecondaryText(false)
+	list.SetSelectedTextColor(FOREGROUND_COLOR)
+	list.SetSelectedBackgroundColor(BACKGROUND_COLOR)
 
 	files := []string{}
 	go updateListWithFiles(list, &files, onichan)
 
+	count = tview.NewTextView()
+	count.SetBackgroundColor(tcell.GetColor("#626262"))
+
 	inputField := tview.NewInputField().
-		SetFieldWidth(30).
+		SetFieldBackgroundColor(BACKGROUND_COLOR).
+		SetFieldTextColor(FOREGROUND_COLOR).
 		SetChangedFunc(func(text string) {
-			go func(text string) {
+			go func(text string) { // FIXME: what happens with immediate calls??
 				sorted_files := rankFiles(&files, text)
 				app.QueueUpdateDraw(func() {
 					list.Clear()
@@ -127,7 +147,7 @@ func main() {
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
 		AddItem(list, 0, 10, false).
-		AddItem((&tview.Box{}).SetBackgroundColor(list.GetBackgroundColor()), 1, 0, false). // FIXME: tmp fix
+		AddItem(count, 1, 0, false).
 		AddItem(inputField, 1, 0, true)
 
 	// Ctrl + N and Ctrl + P to navigate list
@@ -137,6 +157,9 @@ func main() {
 			return nil
 		} else if event.Key() == tcell.KeyCtrlP {
 			list.SetCurrentItem(list.GetCurrentItem() - 1)
+			return nil
+		} else if event.Key() == tcell.KeyHome {
+			list.SetCurrentItem(0)
 			return nil
 		} else if event.Key() == tcell.KeyEnter {
 			if list.GetItemCount() <= 0 {

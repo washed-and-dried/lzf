@@ -12,23 +12,17 @@ func Sort(data []string, score []int) {
 		return
 	}
 
-	workers := runtime.GOMAXPROCS(0)
-	if workers > n {
-		workers = n
-	}
+	workers := min(runtime.GOMAXPROCS(0), n)
 
 	tmpData := make([]string, n)
 	tmpScore := make([]int, n)
 
-	chunk := (n + workers - 1) / workers
+	chunk := (n + workers - 1) / workers // divide equally across threads
 
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		start := w * chunk
-		end := start + chunk
-		if end > n {
-			end = n
-		}
+		end := min(n, start+chunk)
 		if start >= end {
 			continue
 		}
@@ -36,6 +30,9 @@ func Sort(data []string, score []int) {
 		wg.Add(1)
 		go func(s, e int) {
 			defer wg.Done()
+
+			// NOTE: can theoritically we replaced by sort.SliceStable
+			// but according to the post, this allows to use both L1 and L2 caches effectively
 			localBottomUpSort(
 				data[s:e],
 				score[s:e],
@@ -50,15 +47,9 @@ func Sort(data []string, score []int) {
 		wg = sync.WaitGroup{}
 
 		for start := 0; start < n; start += 2 * size {
-			mid := start + size
-			end := start + 2*size
+			mid := min(n, start+size)
+			end := min(n, start+2*size)
 
-			if mid > n {
-				mid = n
-			}
-			if end > n {
-				end = n
-			}
 			if mid >= end {
 				continue
 			}
@@ -82,6 +73,7 @@ func Sort(data []string, score []int) {
 	copy(score, tmpScore)
 }
 
+// iterative merge sort basically! (avoids call stack which is helpful in big data)
 func localBottomUpSort(
 	data []string,
 	score []int,
@@ -91,15 +83,9 @@ func localBottomUpSort(
 	n := len(data)
 	for size := 1; size < n; size <<= 1 {
 		for start := 0; start < n; start += 2 * size {
-			mid := start + size
-			end := start + 2*size
+			mid := min(n, start+size)
+			end := min(n, start+2*size)
 
-			if mid > n {
-				mid = n
-			}
-			if end > n {
-				end = n
-			}
 			if mid >= end {
 				continue
 			}
@@ -125,7 +111,7 @@ func merge(
 	i, j, k := ll, rr, ll
 
 	for i < rr && j < ee {
-		if score[i] > score[j] {
+		if score[i] > score[j] { // NOTE: descending order
 			tmpData[k] = data[i]
 			tmpScore[k] = score[i]
 			i++
