@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -79,6 +80,7 @@ func updateListWithFiles(ls *tview.List, files *[]string, onichan chan string) {
 }
 
 func rankFiles(files_original []string, pattern string) []string {
+	// defer timer("ranFiles")()
 	files := append([]string(nil), files_original...)
 	length := len(files)
 	scores := make([]int, length)
@@ -196,5 +198,13 @@ func main() {
 
 	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
+	}
+}
+
+// use as: defer timer("name")()
+func timer(name string) func() {
+	start := time.Now()
+	return func() {
+		count.SetText(fmt.Sprintf("%s took %v", name, time.Since(start)))
 	}
 }
