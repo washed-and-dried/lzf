@@ -28,8 +28,9 @@ var ignoredDirs = map[string]bool{
 }
 
 var (
-	app   *tview.Application
-	count *tview.TextView
+	app               *tview.Application
+	count             *tview.TextView
+	lastExecutionTime time.Duration
 )
 
 var (
@@ -74,13 +75,13 @@ func updateListWithFiles(ls *tview.List, files *[]string, onichan chan string) {
 		*files = append(*files, file)
 		app.QueueUpdateDraw(func() {
 			ls.AddItem(file, "", '\x00', func() {})
-			count.SetText(fmt.Sprintf("fetching %d files", len(*files)))
+			count.SetText(fmt.Sprintf("fetching %d files: %v", len(*files), lastExecutionTime))
 		})
 	}
 }
 
 func rankFiles(files_original []string, pattern string) []string {
-	// defer timer("ranFiles")()
+	defer timer("ranFiles")()
 	files := append([]string(nil), files_original...)
 	length := len(files)
 	scores := make([]int, length)
@@ -155,8 +156,20 @@ func main() {
 
 	inputField := tview.NewInputField().
 		SetFieldBackgroundColor(BACKGROUND_COLOR).
-		SetFieldTextColor(FOREGROUND_COLOR).
-		SetChangedFunc(func(text string) {
+		SetFieldTextColor(FOREGROUND_COLOR)
+
+	/*
+	* NOTE: if we use .SetChangedFunc on inputField, then it will execute searching on each key press
+	* And AFAIK there is no way to set timeout for key press. Thus, instead we switch to .SetDoneFunc and
+	* search everytime user press enter. However, this puts selecting a file to Ctrl + Y which may be inconvient.
+	* Gonna use this until we find a way to introduce some kind of key press timeout
+	 */
+	inputField.
+		SetDoneFunc(func(key tcell.Key) {
+			if key != tcell.KeyEnter {
+				return
+			}
+
 			go func(text string) { // FIXME: what happens with immediate calls??
 				sorted_files := rankFiles(files, text)
 				app.QueueUpdateDraw(func() {
@@ -165,7 +178,7 @@ func main() {
 						list.AddItem(file, "", '\x00', func() {})
 					}
 				})
-			}(text)
+			}(inputField.GetText())
 		})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -184,7 +197,7 @@ func main() {
 		} else if event.Key() == tcell.KeyHome {
 			list.SetCurrentItem(0)
 			return nil
-		} else if event.Key() == tcell.KeyEnter {
+		} else if event.Key() == tcell.KeyCtrlY {
 			if list.GetItemCount() <= 0 {
 				return nil
 			}
@@ -205,6 +218,6 @@ func main() {
 func timer(name string) func() {
 	start := time.Now()
 	return func() {
-		count.SetText(fmt.Sprintf("%s took %v", name, time.Since(start)))
+		lastExecutionTime = time.Since(start)
 	}
 }
