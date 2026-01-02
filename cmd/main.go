@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/washed-and-dried/lzf/internals/smithwaterman"
+	"github.com/washed-and-dried/lzf/internals/threadedsort"
 )
 
 var ignoredDirs = map[string]bool{
 	".git":    true,
 	".github": true,
 	".cache":  true,
+	"Android": true,
 	"tmp":     true,
 	"dev":     true,
 	"mnt":     true,
@@ -26,6 +27,10 @@ var app *tview.Application
 
 func shouldIgnore(dir string) bool {
 	_, ok := ignoredDirs[dir]
+
+	if !ok && len(dir) > 1 && dir[0] == '.' {
+		return true
+	}
 
 	return ok
 }
@@ -61,8 +66,8 @@ func updateListWithFiles(ls *tview.List, files *[]string, onichan chan string) {
 }
 
 func rankFiles(files_original *[]string, pattern string) *[]string {
-	length := len(*files_original)
-	files := (*files_original)[:length]
+	files := append([]string(nil), *files_original...)
+	length := len(files)
 	scores := make([]int, length)
 
 	for idx := 0; idx < length; idx++ {
@@ -70,9 +75,7 @@ func rankFiles(files_original *[]string, pattern string) *[]string {
 		scores[idx] = score
 	}
 
-	sort.Slice(files, func(i, j int) bool {
-		return scores[i] > scores[j]
-	})
+	threadedsort.Sort(files, scores)
 
 	return &files
 }
@@ -91,6 +94,7 @@ func dirExists(dir string) bool {
 
 func main() {
 	dir, _ := os.UserHomeDir() // FIXME: take from shell
+	// dir := "."
 	if !dirExists(dir) {
 		fmt.Printf("Provided directory %s does not exist\n", dir)
 		os.Exit(69)
@@ -110,13 +114,15 @@ func main() {
 	inputField := tview.NewInputField().
 		SetFieldWidth(30).
 		SetChangedFunc(func(text string) {
-			sorted_files := rankFiles(&files, text)
-			app.QueueUpdateDraw(func() {
-				list.Clear()
-				for _, file := range *sorted_files {
-					list.AddItem(file, "", '\x00', func() {})
-				}
-			})
+			go func(text string) {
+				sorted_files := rankFiles(&files, text)
+				app.QueueUpdateDraw(func() {
+					list.Clear()
+					for _, file := range *sorted_files {
+						list.AddItem(file, "", '\x00', func() {})
+					}
+				})
+			}(text)
 		})
 
 	flex := tview.NewFlex().SetDirection(tview.FlexRow).
