@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -37,6 +39,7 @@ var (
 func shouldIgnore(dir string) bool {
 	_, ok := ignoredDirs[dir]
 
+	// NOTE: ignore all hidden dirs by default
 	if !ok && len(dir) > 1 && dir[0] == '.' {
 		return true
 	}
@@ -75,19 +78,37 @@ func updateListWithFiles(ls *tview.List, files *[]string, onichan chan string) {
 	}
 }
 
-func rankFiles(files_original *[]string, pattern string) *[]string {
-	files := append([]string(nil), *files_original...)
+func rankFiles(files_original []string, pattern string) []string {
+	files := append([]string(nil), files_original...)
 	length := len(files)
 	scores := make([]int, length)
 
-	for idx := 0; idx < length; idx++ {
-		score, _, _ := smithwaterman.ComputeMatrix(pattern, files[idx])
-		scores[idx] = score
+	// divide score calculation with smithwaterman across threads
+	workers := min(runtime.GOMAXPROCS(0), length)
+	chunk := (length + workers - 1) / workers // fancy round up
+
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		start := w * chunk
+		end := min(length, start+chunk)
+		if start >= end {
+			continue
+		}
+
+		wg.Add(1)
+		go func(start, end int) {
+			defer wg.Done()
+			for idx := start; idx < end; idx++ {
+				score, _, _ := smithwaterman.ComputeMatrix(pattern, files[idx])
+				scores[idx] = score
+			}
+		}(start, end)
 	}
+	wg.Wait()
 
 	threadedsort.Sort(files, scores)
 
-	return &files
+	return files
 }
 
 func dirExists(dir string) bool {
@@ -135,10 +156,10 @@ func main() {
 		SetFieldTextColor(FOREGROUND_COLOR).
 		SetChangedFunc(func(text string) {
 			go func(text string) { // FIXME: what happens with immediate calls??
-				sorted_files := rankFiles(&files, text)
+				sorted_files := rankFiles(files, text)
 				app.QueueUpdateDraw(func() {
 					list.Clear()
-					for _, file := range *sorted_files {
+					for _, file := range sorted_files {
 						list.AddItem(file, "", '\x00', func() {})
 					}
 				})
